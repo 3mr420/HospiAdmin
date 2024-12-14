@@ -1,0 +1,173 @@
+.admin-portal {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.admin-portal h2 {
+  color: #2c3e50;
+  margin-bottom: 20px;
+}
+
+.admin-tabs {
+  margin-bottom: 20px;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.admin-tabs button {
+  padding: 10px 20px;
+  margin-right: 10px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: #666;
+  position: relative;
+}
+
+.admin-tabs button.active {
+  color: #3498db;
+  font-weight: bold;
+}
+
+.admin-tabs button.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: #3498db;
+}
+
+.error-message {
+  color: #e74c3c;
+  padding: 10px;
+  margin-bottom: 20px;
+  background-color: #fde8e8;
+  border-radius: 4px;
+}
+
+.loading {
+  text-align: center;
+  padding: 20px;
+  color: #666;
+}
+
+/* Tables */
+.appointments-table,
+.patients-table,
+.patient-appointments {
+  overflow-x: auto;
+  margin-top: 20px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+th, td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+tr:hover {
+  background-color: #f5f6fa;
+}
+
+/* Status colors */
+.status-scheduled {
+  background-color: #fff8e1;
+}
+
+.status-completed {
+  background-color: #e8f5e9;
+}
+
+.status-cancelled {
+  background-color: #fde8e8;
+}
+
+/* Select dropdown */
+.status-select {
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: white;
+  cursor: pointer;
+}
+
+.status-select:hover {
+  border-color: #3498db;
+}
+
+/* Patient details */
+.patient-details {
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.back-btn {
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  color: #3498db;
+  cursor: pointer;
+  font-size: 16px;
+  margin-bottom: 20px;
+}
+
+.back-btn:hover {
+  color: #2980b9;
+}
+
+.patient-info {
+  margin: 20px 0;
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+}
+
+.patient-info p {
+  margin: 10px 0;
+}
+
+.view-details-btn {
+  padding: 6px 12px;
+  background-color: #3498db;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.view-details-btn:hover {
+  background-color: #2980b9;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .admin-portal {
+    padding: 10px;
+  }
+
+  th, td {
+    padding: 8px;
+  }
+
+  .admin-tabs button {
+    padding: 8px 16px;
+  }
+}
