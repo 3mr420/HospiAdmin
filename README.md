@@ -1,94 +1,69 @@
 # HospiAdmin - Hospital Management System
 
-A modern web application for managing hospital appointments, patients, and administrative tasks.
+HospiAdmin is a web-based hospital management system designed to streamline administrative tasks in healthcare facilities. The system provides efficient appointment management, patient record keeping, and administrative controls through an intuitive interface. Built with modern web technologies, it offers a secure and user-friendly solution for hospital staff to manage daily operations effectively.
 
-## Features
+Third-Party Plugins and Dependencies:
+Frontend Dependencies
+React (v18.2.0) - JavaScript library for building user interfaces
+React Router DOM (v6.21.0) - Routing library for React applications
+Axios (v1.6.2) - HTTP client for API requests
+js-cookie (v3.0.5) - Cookie handling library
 
-- **User Authentication**
-  - Secure login system for patients and administrators
-  - Role-based access control
+Backend Dependencies:
+Express.js - Web application framework
+SQLite3 - Database engine
+JSON Web Token (JWT) - Authentication mechanism
+bcrypt - Password hashing
+Nodemon - Development server utility
 
-- **Appointment Management**
-  - Book appointments with doctors
-  - View and manage appointment status
-  - Real-time updates
+Clone the repository:
+bash
+CopyInsert
+git clone https://github.com/3mr420/HospiAdmin.git
+cd HospiAdmin
+Install backend dependencies:
+bash
+CopyInsert in Terminal
+npm install
 
-- **Patient Management**
-  - Patient registration
-  - View patient history
-  - Track appointments
+Install frontend dependencies:
+bash
+CopyInsert
+cd client
+npm install
 
-- **Admin Dashboard**
-  - Comprehensive appointment overview
-  - Patient management interface
-  - Status updates
+Start the backend server (from root directory):
+bash
+CopyInsert in Terminal
+npm start
 
-## Technology Stack
+Start the frontend development server (from client directory):
+bash
+CopyInsert
+cd client
+npm start
 
-- **Frontend**
-  - React.js
-  - Axios for API calls
-  - Modern CSS with responsive design
+The application will be available at:
+Frontend: http://localhost:3000
+Backend: http://localhost:5000
 
-- **Backend**
-  - Node.js
-  - Express.js
-  - SQLite3 database
-  - JWT authentication
+Default admin credentials:
+Username: admin
+Password: admin123
 
-## Installation
+Features:
+Secure authentication system
+Appointment management
+Patient record keeping
+Administrative dashboard
+Real-time updates
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/hospiadmin.git
-   ```
-
-2. Install backend dependencies:
-   ```bash
-   cd hospiadmin
-   npm install
-   ```
-
-3. Install frontend dependencies:
-   ```bash
-   cd client
-   npm install
-   ```
-
-4. Create a .env file in the root directory (optional):
-   ```
-   PORT=5000
-   JWT_SECRET=your_jwt_secret
-   ```
-
-## Running the Application
-
-1. Start the backend server:
-   ```bash
-   npm start
-   ```
-
-2. Start the frontend development server:
-   ```bash
-   cd client
-   npm start
-   ```
-
-3. Access the application at `http://localhost:3000`
-
-## Default Admin Account
-
-- Username: admin
-- Password: admin123
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
+Development:
+Frontend: React.js
+Backend: Node.js with Express
+Database: SQLite3
+Authentication: JWT with HTTP-only cookies
+For any questions or issues, please open an issue in the GitHub repository.
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
