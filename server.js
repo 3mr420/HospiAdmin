@@ -1,359 +1,360 @@
-const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
-const cookieParser = require('cookie-parser');
-const cors = require('cors');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const path = require('path');
+const express = require("express");
+const cors = require("cors");
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
+const db_access = require("./Db.js");
+const db = db_access.db;
+const cookieParser = require("cookie-parser");
+const server = express();
+const port = 555;
+const secret_key = "HospitalManagementSecretKey2025";
 
-const app = express();
-const PORT = process.env.PORT || 5000;
-
-// Middleware
-app.use(cors({
-    origin: 'http://localhost:3000',
+server.use(
+  cors({
+    origin: "http://localhost:3000",
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
+  })
+);
+server.use(express.json());
+server.use(cookieParser());
 
-app.use(express.json());
-app.use(cookieParser());
-
-// Database setup
-const db = new sqlite3.Database('./hospital.db', (err) => {
-    if (err) {
-        console.error('Error connecting to database:', err);
-    } else {
-        console.log('Connected to SQLite database');
-        createTables();
-    }
-});
-
-// Create tables
-function createTables() {
-    db.serialize(() => {
-        console.log('Starting database initialization...');
-        
-        // Drop existing tables
-        db.run("DROP TABLE IF EXISTS appointments");
-        db.run("DROP TABLE IF EXISTS users");
-        db.run("DROP TABLE IF EXISTS doctors");
-
-        // Users table (for both patients and admins)
-        db.run(`CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            password TEXT,
-            name TEXT,
-            role TEXT,
-            phone TEXT
-        )`, (err) => {
-            if (err) {
-                console.error('Error creating users table:', err);
-            } else {
-                console.log('Users table created successfully');
-                
-                // Create admin user
-                const adminPassword = bcrypt.hashSync('admin123', 10);
-                db.run(`INSERT INTO users (username, password, name, role, phone) 
-                        VALUES (?, ?, ?, ?, ?)`,
-                    ['admin', adminPassword, 'Admin User', 'admin', '1234567890'],
-                    function(err) {
-                        if (err) {
-                            console.error('Error creating admin user:', err);
-                        } else {
-                            console.log('Admin user created successfully');
-                        }
-                    });
-            }
-        });
-
-        // Doctors table
-        db.run(`CREATE TABLE IF NOT EXISTS doctors (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            specialization TEXT,
-            image_url TEXT
-        )`, (err) => {
-            if (err) {
-                console.error('Error creating doctors table:', err);
-            } else {
-                console.log('Doctors table created successfully');
-                
-                // Insert sample doctors
-                const doctors = [
-                    ['Dr. Sarah Johnson', 'Cardiologist', '/images/doctor1.jpg'],
-                    ['Dr. Michael Chen', 'Pediatrician', '/images/doctor2.jpg'],
-                    ['Dr. Emily Williams', 'Dermatologist', '/images/doctor3.jpg'],
-                    ['Dr. James Wilson', 'Neurologist', '/images/doctor4.jpg'],
-                    ['Dr. Lisa Anderson', 'Family Medicine', '/images/doctor5.jpg']
-                ];
-
-                doctors.forEach(doctor => {
-                    db.run('INSERT INTO doctors (name, specialization, image_url) VALUES (?, ?, ?)',
-                        doctor,
-                        function(err) {
-                            if (err) {
-                                console.error('Error inserting doctor:', err);
-                            } else {
-                                console.log('Doctor inserted:', doctor[0]);
-                            }
-                        });
-                });
-            }
-        });
-
-        // Appointments table
-        db.run(`CREATE TABLE IF NOT EXISTS appointments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            patient_id INTEGER,
-            doctor_id INTEGER,
-            date TEXT,
-            time TEXT,
-            status TEXT DEFAULT 'scheduled',
-            FOREIGN KEY(patient_id) REFERENCES users(id),
-            FOREIGN KEY(doctor_id) REFERENCES doctors(id)
-        )`, (err) => {
-            if (err) {
-                console.error('Error creating appointments table:', err);
-            } else {
-                console.log('Appointments table created successfully');
-            }
-        });
-    });
-}
-
-// Authentication middleware
-const authenticateToken = (req, res, next) => {
-    const token = req.cookies.token;
-    if (!token) return res.status(401).json({ error: 'Access denied' });
-
-    jwt.verify(token, 'your_jwt_secret', (err, user) => {
-        if (err) return res.status(403).json({ error: 'Invalid token' });
-        req.user = user;
-        next();
-    });
+const generateToken = (id, role) => {
+  return jwt.sign({ id, role }, secret_key, { expiresIn: "1h" });
 };
 
-// Routes
-app.post('/api/register', async (req, res) => {
-    const { username, password, name, phone } = req.body;
-    console.log('Registering new user:', { username, name, phone });
-    
-    const hashedPassword = await bcrypt.hash(password, 10);
-    
-    db.run('INSERT INTO users (username, password, name, role, phone) VALUES (?, ?, ?, ?, ?)',
-        [username, hashedPassword, name, 'patient', phone],
-        function(err) {
-            if (err) {
-                console.error('Registration error:', err);
-                return res.status(400).json({ error: 'Username already exists' });
-            }
-            console.log('User registered successfully:', username);
-            res.json({ message: 'Registration successful' });
-        });
-});
-
-app.post('/api/login', (req, res) => {
-    const { username, password } = req.body;
-    console.log('Login attempt for username:', username);
-    
-    db.get('SELECT * FROM users WHERE username = ?', [username], async (err, user) => {
-        if (err) {
-            console.error('Database error during login:', err);
-            return res.status(500).json({ error: 'Internal server error' });
-        }
-        
-        if (!user) {
-            console.log('User not found:', username);
-            return res.status(400).json({ error: 'User not found' });
-        }
-
-        try {
-            const validPassword = await bcrypt.compare(password, user.password);
-            if (!validPassword) {
-                console.log('Invalid password for user:', username);
-                return res.status(400).json({ error: 'Invalid password' });
-            }
-
-            const token = jwt.sign({ id: user.id, role: user.role }, 'your_jwt_secret');
-            console.log('Login successful for user:', username, 'with role:', user.role);
-            
-            res.cookie('token', token, { 
-                httpOnly: false,
-                secure: false,
-                sameSite: 'lax',
-                path: '/',
-                maxAge: 24 * 60 * 60 * 1000
-            });
-
-            res.cookie('role', user.role, {
-                httpOnly: false,
-                secure: false,
-                sameSite: 'lax',
-                path: '/',
-                maxAge: 24 * 60 * 60 * 1000
-            });
-
-            res.json({ 
-                success: true,
-                role: user.role,
-                message: 'Login successful'
-            });
-        } catch (error) {
-            console.error('Error during password comparison:', error);
-            res.status(500).json({ error: 'Internal server error' });
-        }
-    });
-});
-
-app.get('/api/doctors', authenticateToken, (req, res) => {
-    db.all('SELECT * FROM doctors', [], (err, rows) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
-        res.json(rows);
-    });
-});
-
-app.post('/api/appointments', authenticateToken, (req, res) => {
-    const { doctor_id, date, time } = req.body;
-    const patient_id = req.user.id;
-
-    db.run('INSERT INTO appointments (patient_id, doctor_id, date, time, status) VALUES (?, ?, ?, ?, ?)',
-        [patient_id, doctor_id, date, time, 'scheduled'],
-        function(err) {
-            if (err) {
-                return res.status(500).json({ error: err.message });
-            }
-            res.json({ id: this.lastID });
-        });
-});
-
-// Update appointment status
-app.put('/api/appointments/:id', authenticateToken, (req, res) => {
-    const { id } = req.params;
-    const { status } = req.body;
-    
-    if (!['scheduled', 'completed', 'cancelled'].includes(status)) {
-        return res.status(400).json({ error: 'Invalid status' });
+const verifyToken = (req, res, next) => {
+  const token = req.cookies.authToken;
+  if (!token) {
+    console.log("Here problem!!");
+    return res.status(401).send("unauthorized");
+  }
+  jwt.verify(token, secret_key, (err, details) => {
+    if (err) {
+      console.log("Token verification failed:", err.message);
+      return res.status(403).json({ error: "Invalid or expired token" });
     }
+    req.userDetails = details;
+    next();
+  });
+};
 
+
+server.post("/user/register", (req, res) => {
+  const name = req.body.name;
+  const email = req.body.email;
+  const password = req.body.password;
+  bcrypt.hash(password, 10, (err, hashedPassword) => {
+    if (err) {
+      return res.status(500).send("error hashing password");
+    }
     db.run(
-        'UPDATE appointments SET status = ? WHERE id = ?',
-        [status, id],
-        function(err) {
-            if (err) {
-                console.error('Error updating appointment:', err);
-                return res.status(500).json({ error: 'Failed to update appointment' });
-            }
-            if (this.changes === 0) {
-                return res.status(404).json({ error: 'Appointment not found' });
-            }
-            res.json({ message: 'Appointment updated successfully' });
-        }
-    );
-});
-
-app.get('/api/appointments', authenticateToken, (req, res) => {
-    const query = req.user.role === 'admin' 
-        ? `SELECT a.*, u.name as patient_name, d.name as doctor_name 
-           FROM appointments a 
-           JOIN users u ON a.patient_id = u.id 
-           JOIN doctors d ON a.doctor_id = d.id`
-        : `SELECT a.*, d.name as doctor_name 
-           FROM appointments a 
-           JOIN doctors d ON a.doctor_id = d.id 
-           WHERE a.patient_id = ?`;
-    
-    const params = req.user.role === 'admin' ? [] : [req.user.id];
-    
-    db.all(query, params, (err, rows) => {
+      `INSERT INTO ACCOUNTS (name, email, password, role) VALUES (?, ?, ?, ?)`,
+      [name, email, hashedPassword, "user"],
+      (err) => {
         if (err) {
-            return res.status(500).json({ error: err.message });
-        }
-        res.json(rows);
-    });
+          return res.status(401).send(err.message);
+        } else return res.status(200).send("Registration successful");
+      }
+    );
+  });
 });
 
-// Get all patients (admin only)
-app.get('/api/patients', authenticateToken, (req, res) => {
-    if (req.user.role !== 'admin') {
-        return res.status(403).json({ error: 'Admin access required' });
+
+server.post("/user/login", (req, res) => {
+  const email = req.body.email;
+  const password = req.body.password;
+
+  db.get(`SELECT * FROM ACCOUNTS WHERE EMAIL = ? `, [email], (err, row) => {
+    if (err || !row) {
+      return res.status(401).send("Invalid credentials");
+    }
+    bcrypt.compare(password, row.PASSWORD, (err, isMatch) => {
+      if (err || !isMatch) {
+        return res.status(401).send("Invalid credentials");
+      }
+      const token = generateToken(row.ID, row.ROLE);
+      res.cookie("authToken", token, {
+        httpOnly: true,
+        secure: true,
+        maxAge: 60 * 60 * 1000,
+      });
+      return res
+        .status(200)
+        .json({ id: row.ID, role: row.ROLE, name: row.NAME });
+    });
+  });
+});
+
+
+server.post("/doctor/add", verifyToken, (req, res) => {
+  if (req.userDetails.role !== "admin") {
+    console.log(
+      "Access denied: User role is",
+      req.userDetails.role,
+      "but admin required"
+    );
+    return res
+      .status(403)
+      .json({ error: "Access denied: Admin role required" });
+  }
+
+  const { name, email, password, specialty, yearsOfExperience } = req.body;
+
+  bcrypt.hash(password, 10, (err, hashedPassword) => {
+    if (err) {
+      return res.status(500).send("Error hashing password");
     }
 
-    db.all(
-        `SELECT id, username, name, phone, role,
-        (SELECT COUNT(*) FROM appointments WHERE patient_id = users.id) as appointment_count
-        FROM users
-        WHERE role = 'patient'`,
-        [],
-        (err, rows) => {
-            if (err) {
-                console.error('Error fetching patients:', err);
-                return res.status(500).json({ error: 'Failed to fetch patients' });
-            }
-            res.json(rows);
-        }
-    );
-});
-
-// Get patient details with appointment history
-app.get('/api/patients/:id', authenticateToken, (req, res) => {
-    if (req.user.role !== 'admin') {
-        return res.status(403).json({ error: 'Admin access required' });
-    }
-
-    const { id } = req.params;
     
-    db.get('SELECT id, username, name, phone FROM users WHERE id = ? AND role = ?', 
-        [id, 'patient'],
-        (err, patient) => {
-            if (err) {
-                return res.status(500).json({ error: 'Failed to fetch patient details' });
-            }
-            if (!patient) {
-                return res.status(404).json({ error: 'Patient not found' });
-            }
-
-            db.all(
-                `SELECT a.*, d.name as doctor_name
-                FROM appointments a
-                JOIN doctors d ON a.doctor_id = d.id
-                WHERE a.patient_id = ?
-                ORDER BY a.date DESC, a.time DESC`,
-                [id],
-                (err, appointments) => {
-                    if (err) {
-                        return res.status(500).json({ error: 'Failed to fetch appointment history' });
-                    }
-                    res.json({
-                        ...patient,
-                        appointments
-                    });
-                }
-            );
-        }
-    );
-});
-
-app.post('/api/logout', (req, res) => {
-    res.clearCookie('token');
-    res.clearCookie('role');
-    res.json({ message: 'Logged out successfully' });
-});
-
-// Add a test route to verify database content
-app.get('/api/test/users', (req, res) => {
-    db.all('SELECT id, username, role, name FROM users', [], (err, rows) => {
+    db.run(
+      `INSERT INTO ACCOUNTS (name, email, password, role) VALUES (?, ?, ?, ?)`,
+      [name, email, hashedPassword, "doctor"],
+      function (err) {
         if (err) {
-            return res.status(500).json({ error: err.message });
+          return res.status(400).send(err.message);
         }
-        res.json(rows);
-    });
+
+        const accountId = this.lastID;
+
+       
+        db.run(
+          `INSERT INTO DOCTOR_PROFILES (account_id, specialty, years_of_experience) VALUES (?, ?, ?)`,
+          [accountId, specialty, yearsOfExperience],
+          (err) => {
+            if (err) {
+              return res.status(400).send(err.message);
+            }
+            return res.status(200).send("Doctor added successfully");
+          }
+        );
+      }
+    );
+  });
 });
 
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+
+server.post("/doctor/schedule", verifyToken, (req, res) => {
+  if (req.userDetails.role !== "admin") {
+    return res.status(403).send("you are not admin.");
+  }
+
+  const { doctorAccountId, appointmentDate, startTime, endTime } = req.body;
+
+  db.run(
+    `INSERT INTO SCHEDULES (doctor_account_id, appointment_date, start_time, end_time) 
+            VALUES (?, ?, ?, ?)`,
+    [doctorAccountId, appointmentDate, startTime, endTime],
+    (err) => {
+      if (err) {
+        return res.status(400).send(err.message);
+      }
+      return res.status(200).send("Schedule added successfully");
+    }
+  );
+});
+
+
+server.get("/doctors", (req, res) => {
+  db.all(
+    `SELECT a.ID, a.NAME, a.EMAIL, dp.SPECIALTY, dp.YEARS_OF_EXPERIENCE 
+            FROM ACCOUNTS a 
+            JOIN DOCTOR_PROFILES dp ON a.ID = dp.ACCOUNT_ID 
+            WHERE a.ROLE = 'doctor'`,
+    (err, rows) => {
+      if (err) {
+        return res.status(500).send(err.message);
+      }
+      return res.json(rows);
+    }
+  );
+});
+
+
+server.get("/doctor/schedules/:doctorId", (req, res) => {
+  const doctorId = req.params.doctorId;
+  db.all(
+    `SELECT * FROM SCHEDULES WHERE DOCTOR_ACCOUNT_ID = ? ORDER BY APPOINTMENT_DATE, START_TIME`,
+    [doctorId],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).send(err.message);
+      }
+      return res.json(rows);
+    }
+  );
+});
+
+
+server.post("/booking/create", verifyToken, (req, res) => {
+  if (req.userDetails.role !== "user") {
+    return res.status(403).send("you are not patient.");
+  }
+
+  const { scheduleId } = req.body;
+  const userId = req.userDetails.id;
+
+  
+  db.get(
+    `SELECT * FROM BOOKINGS WHERE SCHEDULE_ID = ?`,
+    [scheduleId],
+    (err, existingBooking) => {
+      if (err) {
+        return res.status(500).send(err.message);
+      }
+
+      if (existingBooking) {
+        return res.status(400).send("This appointment slot is already booked");
+      }
+
+    
+      db.run(
+        `INSERT INTO BOOKINGS (user_account_id, schedule_id, status) VALUES (?, ?, ?)`,
+        [userId, scheduleId, "Pending"],
+        (err) => {
+          if (err) {
+            return res.status(400).send(err.message);
+          }
+          return res.status(200).send("Booking created successfully");
+        }
+      );
+    }
+  );
+});
+
+
+server.get("/user/bookings", verifyToken, (req, res) => {
+  if (req.userDetails.role !== "user") {
+    return res.status(403).send("you are not patient.");
+  }
+
+  const userId = req.userDetails.id;
+  db.all(
+    `SELECT b.*, s.APPOINTMENT_DATE, s.START_TIME, s.END_TIME, 
+            d.NAME as doctor_name, dp.SPECIALTY
+            FROM BOOKINGS b 
+            JOIN SCHEDULES s ON b.SCHEDULE_ID = s.ID 
+            JOIN ACCOUNTS d ON s.DOCTOR_ACCOUNT_ID = d.ID 
+            JOIN DOCTOR_PROFILES dp ON d.ID = dp.ACCOUNT_ID
+            WHERE b.USER_ACCOUNT_ID = ? 
+            ORDER BY s.APPOINTMENT_DATE, s.START_TIME`,
+    [userId],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).send(err.message);
+      }
+      return res.json(rows);
+    }
+  );
+});
+
+
+server.get("/doctor/bookings", verifyToken, (req, res) => {
+  if (req.userDetails.role !== "doctor") {
+    return res.status(403).send("you are not doctor.");
+  }
+
+  const doctorId = req.userDetails.id;
+  db.all(
+    `SELECT b.*, s.APPOINTMENT_DATE, s.START_TIME, s.END_TIME, 
+            u.NAME as patient_name
+            FROM BOOKINGS b 
+            JOIN SCHEDULES s ON b.SCHEDULE_ID = s.ID 
+            JOIN ACCOUNTS u ON b.USER_ACCOUNT_ID = u.ID 
+            WHERE s.DOCTOR_ACCOUNT_ID = ? 
+            ORDER BY s.APPOINTMENT_DATE, s.START_TIME`,
+    [doctorId],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).send(err.message);
+      }
+      return res.json(rows);
+    }
+  );
+});
+
+
+server.put("/booking/status/:id", verifyToken, (req, res) => {
+  if (req.userDetails.role !== "admin") {
+    return res.status(403).send("you are not admin.");
+  }
+
+  const { status } = req.body;
+  const bookingId = req.params.id;
+
+  db.run(
+    `UPDATE BOOKINGS SET STATUS = ? WHERE ID = ?`,
+    [status, bookingId],
+    (err) => {
+      if (err) {
+        return res.status(400).send(err.message);
+      }
+      return res.status(200).send("Booking status updated successfully");
+    }
+  );
+});
+
+
+server.get("/admin/bookings", verifyToken, (req, res) => {
+  if (req.userDetails.role !== "admin") {
+    return res.status(403).send("you are not admin.");
+  }
+
+  db.all(
+    `SELECT b.*, s.APPOINTMENT_DATE, s.START_TIME, s.END_TIME, 
+            u.NAME as patient_name, d.NAME as doctor_name, dp.SPECIALTY
+            FROM BOOKINGS b 
+            JOIN SCHEDULES s ON b.SCHEDULE_ID = s.ID 
+            JOIN ACCOUNTS u ON b.USER_ACCOUNT_ID = u.ID 
+            JOIN ACCOUNTS d ON s.DOCTOR_ACCOUNT_ID = d.ID 
+            LEFT JOIN DOCTOR_PROFILES dp ON d.ID = dp.ACCOUNT_ID
+            ORDER BY s.APPOINTMENT_DATE, s.START_TIME`,
+    (err, rows) => {
+      if (err) {
+        return res.status(500).send(err.message);
+      }
+      return res.json(rows);
+    }
+  );
+});
+
+
+server.get("/schedules/available", (req, res) => {
+  db.all(
+    `SELECT s.*, d.NAME as doctor_name, dp.SPECIALTY
+            FROM SCHEDULES s 
+            JOIN ACCOUNTS d ON s.DOCTOR_ACCOUNT_ID = d.ID 
+            LEFT JOIN DOCTOR_PROFILES dp ON d.ID = dp.ACCOUNT_ID
+            WHERE s.ID NOT IN (SELECT SCHEDULE_ID FROM BOOKINGS)
+            ORDER BY s.APPOINTMENT_DATE, s.START_TIME`,
+    (err, rows) => {
+      if (err) {
+        return res.status(500).send(err.message);
+      }
+      return res.json(rows);
+    }
+  );
+});
+
+
+server.post("/logout", (req, res) => {
+  res.clearCookie("authToken");
+  return res.status(200).send("Logged out successfully");
+});
+
+server.listen(port, () => {
+  console.log(`Hospital management server started at port ${port}`);
+  db.serialize(() => {
+    db.run(db_access.createAccountsTable, (err) => {
+      if (err) console.log("error creating accounts table " + err);
+    });
+    db.run(db_access.createDoctorProfilesTable, (err) => {
+      if (err) console.log("error creating doctor profiles table " + err);
+    });
+    db.run(db_access.createSchedulesTable, (err) => {
+      if (err) console.log("error creating schedules table " + err);
+    });
+    db.run(db_access.createBookingsTable, (err) => {
+      if (err) console.log("error creating bookings table " + err);
+    });
+  });
 });
